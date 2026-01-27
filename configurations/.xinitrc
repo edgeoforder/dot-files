@@ -46,4 +46,8 @@ if [ -d "$xinitdir"/xinitrc.d ] ; then
 	unset f
 fi
 
+if [ "$HOSTNAME" = "criticality" ]; then
+    setxkbmap -layout de
+fi
+
 qtile start
