@@ -47,7 +47,7 @@ timedatectl
 
 Install base system:
 ```bash
-pacstrap -K /mnt base base-devel linux linux-firmware btrfs-progs <intel|amd>-ucode iwd dhcpcd openssh bluez bluez-utils vim git
+pacstrap -K /mnt base base-devel linux linux-firmware btrfs-progs <intel|amd>-ucode iwd dhcpcd openssh bluez bluez-utils less vim git
 ```
 
 Generate the `fstab` file:
