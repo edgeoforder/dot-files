@@ -55,8 +55,11 @@ let g:airline_statusline_ontop = 1
 if !exists('g:airline_symbols')
   let g:airline_symbols = {}
 endif
-let g:airline_symbols.maxlinenr = ''
+
 let g:airline_symbols.crypt = ''
+let g:airline_symbols.maxlinenr = ''
+let g:airline_symbols.linenr = ' ☰'
+let g:airline_symbols.colnr = ':'
 
 function! NerdTreeInit()
  if argc() > 0 || exists('s:std_in') | NERDTreeFind |  wincmd p | else | NERDTreeToggle | wincmd p |  endif
