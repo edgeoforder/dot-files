@@ -9,6 +9,7 @@ if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ $DISPLAY ]] && [[ ! "$TER
   exec tmux new-session -A -s $HOSTNAME
 fi
 
+source ~/.dircolors
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 
