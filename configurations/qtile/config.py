@@ -27,6 +27,7 @@ except redis.exceptions.ConnectionError:
     r = None
 
 import widgets.power_supply
+import widgets.brightness
 
 monitors_path = os.path.expanduser(os.path.join("~", ".config", "qtile", "monitors.json"))
 monitors = json.load(open(monitors_path, "r"))
@@ -107,6 +108,8 @@ keys = [
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
     Key([mod], "r", lazy.spawn("rofi -show run"), desc="Spawn a command using a prompt widget"),
+    Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl s 50+"), desc="Increase monitor brightness"),
+    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl s 50-"), desc="Decrease monitor brightness"),
 ]
 
 # Add key bindings to switch VTs in Wayland.
@@ -291,6 +294,15 @@ for i, monitor in enumerate(sorted(monitors, key=lambda monitor: monitor["positi
                     r=r,
                     warning_color=theme["warning"],
                 ),
+                widget.Spacer(length=10),
+                widgets.brightness.WidgetBrightness(
+                    r=r,
+                    target_value=845,
+                    highlight_color=theme["highlight"],
+                    warning_color=theme["warning"],
+                    update_interval=1,
+                ),
+                widget.Spacer(length=10),
                 widget.Clock(format="%Y-%m-%d %a %H:%M:%S"),
             ],
             round(dpi / 2),
