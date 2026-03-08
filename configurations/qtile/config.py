@@ -13,9 +13,9 @@ try:
     import redis
 
     pool = redis.ConnectionPool(
-        host=os.environ.get("NBS_REDIS_HOST", "localhost"),
-        port=int(os.environ.get("NBS_REDIS_PORT", 6379)),
-        db=int(os.environ.get("NBS_REDIS_DB", 1)),
+        host=os.environ.get("REDIS_HOST", "localhost"),
+        port=int(os.environ.get("REDIS_PORT", 6379)),
+        db=int(os.environ.get("REDIS_DB", 1)),
         socket_connect_timeout=0.5,  # connect phase
         socket_timeout=0.5,          # read/write phase
         health_check_interval=30,
