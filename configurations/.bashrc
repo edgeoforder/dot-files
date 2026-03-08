@@ -5,6 +5,10 @@
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ $DISPLAY ]] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+  exec tmux new-session -A -s $HOSTNAME
+fi
+
 alias ls='ls --color=auto'
 alias grep='grep --color=auto'
 
@@ -19,3 +23,4 @@ alias yay-update-all='export TMPFILE="$(mktemp)"; \
 
 
 PS1='[\u@\h \W]\$ '
+eval "$(starship init bash)"

@@ -47,7 +47,8 @@ if [ -d "$xinitdir"/xinitrc.d ] ; then
 fi
 
 if [ "$HOSTNAME" = "criticality" ]; then
-    setxkbmap -layout de
+	dispwin -d 1 -i ~/.config/icc/lenovo.icc
+	setxkbmap -layout de
 fi
 
 qtile start

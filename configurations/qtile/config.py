@@ -1,13 +1,65 @@
 import os
+import json
+import subprocess
+import screeninfo
 
 import libqtile.resources
-from libqtile import bar, layout, qtile, widget
-from libqtile.config import Click, Drag, Group, Key, Match, Screen
+from libqtile import bar, layout, qtile, widget, hook
+from libqtile.config import Click, Drag, Group, Key, KeyChord,  Match, Screen
 from libqtile.lazy import lazy
-from libqtile.utils import guess_terminal
+from libqtile.utils import guess_terminal, send_notification
+
+try:
+    import redis
+
+    pool = redis.ConnectionPool(
+        host=os.environ.get("NBS_REDIS_HOST", "localhost"),
+        port=int(os.environ.get("NBS_REDIS_PORT", 6379)),
+        db=int(os.environ.get("NBS_REDIS_DB", 1)),
+        socket_connect_timeout=0.5,  # connect phase
+        socket_timeout=0.5,          # read/write phase
+        health_check_interval=30,
+        )
+    r = redis.Redis(connection_pool=pool)
+except ImportError:
+    r = None
+except redis.exceptions.ConnectionError:
+    r = None
+
+import widgets.power_supply
+
+monitors_path = os.path.expanduser(os.path.join("~", ".config", "qtile", "monitors.json"))
+monitors = json.load(open(monitors_path, "r"))
+
+@hook.subscribe.startup_once
+def autostart():
+    subprocess.Popen(["autorandr", "-c"])
 
 mod = "mod4"
 terminal = guess_terminal()
+
+colors = {
+        "dark_black": "#322f2f",
+        "grey": "#8d8989",
+        "dark_white": "#d5d1d1",
+        "medium_red": "#cd6869",
+        "light_red": "#ffd9e1",
+        "medium_purple": "#b66cac",
+        "light_purple": "#f9a8ee",
+        "medium_green": "#77c087",
+        "light_blue": "#95ceff",
+        "medium_blue": "#4d91c7"
+        }
+
+theme = {
+        "background": colors["dark_black"],
+        "foreground": colors["grey"],
+        "highlight": colors["dark_white"],
+        "notification": colors["medium_blue"],
+        "warning": colors["light_blue"],
+        "failure": colors["medium_red"],
+        "success": colors["medium_green"],
+        }
 
 keys = [
     # A list of available commands that can be bound to keys can be found
@@ -54,7 +106,7 @@ keys = [
     Key([mod], "t", lazy.window.toggle_floating(), desc="Toggle floating on the focused window"),
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
-    Key([mod], "r", lazy.spawncmd(), desc="Spawn a command using a prompt widget"),
+    Key([mod], "r", lazy.spawn("rofi -show run"), desc="Spawn a command using a prompt widget"),
 ]
 
 # Add key bindings to switch VTs in Wayland.
@@ -71,35 +123,110 @@ for vt in range(1, 8):
     )
 
 
-groups = [Group(i) for i in "123456789"]
+characters_subscript = ["<sub>h</sub>", "<sub>j</sub>", "<sub>k</sub>", "<sub>l</sub>"]
+characters = ["h", "j", "k", "l"]
+monitor_symbol = "󰍹 "
+group_symbol = "●"
+groups = []
+for i, monitor in enumerate(sorted(monitors, key=lambda monitor: monitor["position"]["x"])):
+    groups += [
+            Group(
+                str(j),
+                label=f"{group_symbol}{characters_subscript[(j - 1) % len(characters_subscript)]}",
+                ) for j in range(1 + i * len(characters_subscript), len(characters_subscript) + 1 + i * len(characters_subscript), )
+            ]
+@hook.subscribe.startup_complete
+def send_to_screens():
+    for i in range(len(monitors)):
+        for j in range(1 + i * len(characters_subscript), len(characters_subscript) + i * len(characters_subscript) + 1):
+            qtile.groups_map(str(j)).toscreen(i)
+        qtile.groups_map[str(1 + i * len(characters_subscript))].toscreen(i)
 
-for i in groups:
-    keys.extend(
+
+group_chords = []
+group_chords_move = []
+for i, monitor in enumerate(sorted(monitors, key=lambda monitor: monitor["position"]["x"])):
+    tmp = []
+    tmp_move = []
+    for j in range(1 + i * len(characters_subscript), len(characters_subscript) + 1 + i * len(characters_subscript)):
+        tmp.append(
+                Key(
+                    [],
+                    characters[(j - 1) % len(characters_subscript)],
+                    lazy.group[str(j)].toscreen(i),
+                    desc=f"switch to group {j} on monitor {characters[i]}"
+                    )
+                )
+        tmp_move.append(
+                Key(
+                    [],
+                    characters[(j - 1) % len(characters_subscript)],
+                    lazy.window.togroup(str(j), switch_group=False),
+                    desc=f"move focused window to group {j} on monitor {characters[i]}"
+                    )
+                )
+        group_chords.append(
+                KeyChord([], characters[i], tmp, name=f"switch group on screen {characters[i]}")
+                )
+        group_chords_move.append(
+                KeyChord([], characters[i], tmp_move, name=f"move focused window to screen {characters[i]}")
+                )
+
+tmp_focus = []
+for i, monitor in enumerate(sorted(monitors, key=lambda monitor: monitor["position"]["x"])):
+    tmp_focus.append(
+            Key(
+                [],
+                characters[i],
+                lazy.to_screen(i),
+                desc=f"move to screen {characters[i]}"
+                )
+            )
+
+keys.extend(
         [
-            # mod + group number = switch to group
-            Key(
+            KeyChord(
                 [mod],
-                i.name,
-                lazy.group[i.name].toscreen(),
-                desc=f"Switch to group {i.name}",
-            ),
-            # mod + shift + group number = switch to & move focused window to group
-            Key(
-                [mod, "shift"],
-                i.name,
-                lazy.window.togroup(i.name, switch_group=True),
-                desc=f"Switch to & move focused window to group {i.name}",
-            ),
-            # Or, use below if you prefer not to switch to that group.
-            # # mod + shift + group number = move focused window to group
-            # Key([mod, "shift"], i.name, lazy.window.togroup(i.name),
-            #     desc="move focused window to group {}".format(i.name)),
-        ]
-    )
+                "d",
+                tmp_focus,
+                name="move to screen",
+                desc="move to screen",
+                )
+            ]
+        )
+
+keys.extend(
+        [
+            KeyChord(
+                [mod],
+                "f",
+                group_chords,
+                name="switch to group",
+                desc="switch to group",
+                )
+            ]
+        )
+
+keys.extend(
+        [
+            KeyChord(
+                [mod],
+                "g",
+                group_chords_move,
+                name="move window to group",
+                desc="move window to group",
+                )
+            ]
+        )
 
 layouts = [
-    layout.Columns(border_focus_stack=["#d75f5f", "#8f3d3d"], border_width=4),
-    layout.Max(),
+    layout.Columns(
+        border_width=0,
+        margin=[10, 10, 20, 10],
+        initial_ratio=16/9),
+    layout.Max(
+        border_width=0,
+        margin=[10, 10, 20, 10]),
     # Try more layouts by unleashing below layouts.
     # layout.Stack(num_stacks=2),
     # layout.Bsp(),
@@ -113,49 +240,70 @@ layouts = [
     # layout.Zoomy(),
 ]
 
-widget_defaults = dict(
+extensions_default = dict(
     font="sans",
     fontsize=12,
     padding=3,
 )
-extension_defaults = widget_defaults.copy()
 
-logo = os.path.join(os.path.dirname(libqtile.resources.__file__), "logo.png")
-screens = [
-    Screen(
-        bottom=bar.Bar(
+logo = None # os.path.join(os.path.dirname(libqtile.resources.__file__), "logo.png")
+
+screens = []
+for i, monitor in enumerate(sorted(monitors, key=lambda monitor: monitor["position"]["x"])):
+    monitor_width_mm = monitor["physical_size"]["width"]
+    monitor_height_mm = monitor["physical_size"]["height"]
+    for mode in monitor["modes"]:
+        if mode["current"]:
+            monitor_width_px = mode["width"]
+            monitor_height_px = mode["height"]
+    monitor_diagonal_mm = (monitor_width_mm ** 2 + monitor_height_mm ** 2) ** 0.5
+    monitor_diagonal_px = (monitor_width_px ** 2 + monitor_height_px ** 2) ** 0.5
+    dpi = monitor_diagonal_px / (monitor_diagonal_mm / 25.4)
+    font_size = round(dpi / 10)
+    widget_defaults = dict(
+            foreground=theme["foreground"],
+            font="OverpassM Nerd Font",
+            fontsize=round(dpi / 10),
+            padding=round(dpi / 30),
+            )
+    screen = Screen(
+        top=bar.Bar(
             [
-                widget.CurrentLayout(),
-                widget.GroupBox(),
-                widget.Prompt(),
-                widget.WindowName(),
+                widget.TextBox(f"{monitor_symbol}{characters_subscript[i % len(characters_subscript)]}"),
+                widget.GroupBox(markup=True, hide_unused=False, highlight_method="text", urgent_alert_method="text", this_current_screen_border=theme["notification"], active=theme["highlight"], inactive=theme["foreground"], urgent_text=theme["warning"], urgent_border=theme["warning"], visible_groups=list(map(str, range(1 + i * len(characters_subscript), len(characters_subscript) + 1 + i * len(characters_subscript))))),
+                widget.TaskList(
+                    icon_size=0,
+                    highlight_method="block",
+                    borderwidth=0,
+                    border=theme["notification"],
+                    urgent_border=theme["warning"],
+                    markup_focused="<span foreground='" + theme["background"] + "'>{}</span>",
+                    padding_x=round(dpi / 10),
+                    padding_y=round(dpi / 20),
+                ),
                 widget.Chord(
                     chords_colors={
                         "launch": ("#ff0000", "#ffffff"),
                     },
                     name_transform=lambda name: name.upper(),
                 ),
-                widget.TextBox("default config", name="default"),
-                widget.TextBox("Press &lt;M-r&gt; to spawn", foreground="#d75f5f"),
-                # NB Systray is incompatible with Wayland, consider using StatusNotifier instead
-                # widget.StatusNotifier(),
-                widget.Systray(),
-                widget.Clock(format="%Y-%m-%d %a %I:%M %p"),
-                widget.QuickExit(),
+                widgets.power_supply.WidgetPowerSupply(
+                    r=r,
+                    warning_color=theme["warning"],
+                ),
+                widget.Clock(format="%Y-%m-%d %a %H:%M:%S"),
             ],
-            24,
+            round(dpi / 2),
+            background=theme["background"],
+            margin=[0, 0, 0, 0],
             # border_width=[2, 0, 2, 0],  # Draw top and bottom borders
             # border_color=["ff00ff", "000000", "ff00ff", "000000"]  # Borders are magenta
         ),
-        background="#000000",
+        background=theme["background"],
         wallpaper=logo,
         wallpaper_mode="center",
-        # You can uncomment this variable if you see that on X11 floating resize/moving is laggy
-        # By default we handle these events delayed to already improve performance, however your system might still be struggling
-        # This variable is set to None (no cap) by default, but you can set it to 60 to indicate that you limit it to 60 events per second
-        # x11_drag_polling_rate = 60,
-    ),
-]
+    )
+    screens.append(screen)
 
 # Drag floating layouts.
 mouse = [
@@ -169,7 +317,7 @@ dgroups_app_rules = []  # type: list
 follow_mouse_focus = True
 bring_front_click = False
 floats_kept_above = True
-cursor_warp = False
+cursor_warp = True
 floating_layout = layout.Floating(
     float_rules=[
         # Run the utility of `xprop` to see the wm class and name of an X client.
@@ -192,7 +340,13 @@ reconfigure_screens = True
 auto_minimize = True
 
 # When using the Wayland backend, this can be used to configure input devices.
-wl_input_rules = None
+# wl_input_rules = {
+#         "type:keyboard": InputConfig(
+#             kb_layout="de",
+#             kb_variant="nodeadkeys",
+#             kb_options="caps:escape"
+#             )
+#         }
 
 # xcursor theme (string or None) and size (integer) for Wayland backend
 wl_xcursor_theme = None

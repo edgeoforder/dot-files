@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ "$HOSTNAME" = "criticality" ]; then
+        dispwin -d 1 -i ~/.config/icc/lenovo.icc
+fi

@@ -166,5 +166,5 @@ makepkg -si
 
 Install window manager, terminal emulator and browser (choose `pipewire-jack` as audio provider):
 ```bash
-yay -S xorg-server xorg-xinit autorandr arandr qtile kitty qutebrowser
+yay -S xorg-server xorg-xinit autorandr arandr qtile python-dbus-fast python-screeninfo dunst rofi tmux kitty qutebrowser
 ```
